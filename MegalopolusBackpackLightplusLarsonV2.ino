@@ -1,19 +1,43 @@
+/*
+LED VU meter for Arduino and Adafruit NeoPixel LEDs.
+ 
+Hardware requirements:
+ - Most Arduino or Arduino-compatible boards (ATmega 328P or better).
+ - Adafruit Electret Microphone Amplifier (ID: 1063)
+ - Adafruit Flora RGB Smart Pixels (ID: 1260)
+   OR
+ - Adafruit NeoPixel Digital LED strip (ID: 1138)
+ - Optional: battery for portable use (else power through USB or adapter)
+Software requirements:
+ - Adafruit NeoPixel library
+ 
+Connections:
+ - 3.3V to mic amp +
+ - GND to mic amp -
+ - Analog pin to microphone output (configurable below)
+ - Digital pin to LED data input (configurable below)
+ See notes in setup() regarding 5V vs. 3.3V boards - there may be an
+ extra connection to make and one line of code to enable or disable.
+ 
+Written by Adafruit Industries.  Distributed under the BSD license.
+This paragraph must be included in any redistribution.
+*/
 #include <Boards.h>
 #include <Firmata.h>
 
 #include <Adafruit_NeoPixel.h>
 #include <math.h>
 boolean usingInterrupt = false;
-#define N_PIXELSA  16  // Number of pixels in strand
-#define N_PIXELSB  12  // Number of pixels in strand
-#define MIC_PIN   9  // Microphone is attached to this analog pin
-#define LED_PINA    6  // NeoPixel LED strand is connected to this pin
-#define LED_PINB    12  
-#define DC_OFFSET  0  // DC offset in mic signal - if unusure, leave 0
-#define NOISE     10  // Noise/hum/interference in mic signal
-#define SAMPLES   60  // Length of buffer for dynamic level adjustment
-#define TOP       (N_PIXELSB + 2) // Allow dot to go slightly off scale
-#define PEAK_FALL 40  // Rate of peak falling dot
+#define N_RING  16                // Number of pixels in Neopixelring
+#define N_STRAND  12              // Number of pixels in Strand
+#define MIC_PIN   9               // Microphone is attached to this analog pin
+#define LED_RING_PIN    6         // NeoPixel LED Ring is connected to this pin
+#define LED_STRAND_PIN    12      // NeoPixel LED Strand is connected to this pin
+#define DC_OFFSET  0              // DC offset in mic signal - if unusure, leave 0
+#define NOISE     10              // Noise/hum/interference in mic signal
+#define SAMPLES   60              // Length of buffer for dynamic level adjustment
+#define TOP       (N_STRAND + 2)  // Allow dot to go slightly off scale
+#define PEAK_FALL 40              // Rate of peak falling dot
 
 
 byte
@@ -39,8 +63,8 @@ int
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip_a = Adafruit_NeoPixel(N_PIXELSA, LED_PINA, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel strip_b = Adafruit_NeoPixel(N_PIXELSB, LED_PINB, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel ring = Adafruit_NeoPixel(N_RING, LED_RING_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_STRAND, LED_STRAND_PIN, NEO_GRB + NEO_KHZ800);
 
 // Here is where you can put in your favorite colors that will appear!
 // just add new {nnn, nnn, nnn}, lines. They will be picked out randomly
@@ -75,10 +99,10 @@ unsigned long color;
 
 void setup() {
 memset(vol, 0, sizeof(vol));
-  strip_a.begin();
-  strip_a.show(); // Initialize all pixels to 'off'
-  strip_b.begin();
-  strip_b.show();
+  ring.begin();
+  ring.show(); // Initialize all pixels to 'off'
+  strip.begin();
+  strip.show();
   pinMode(buttonPin, INPUT);// Make input & enable pull-up resistors on switch pins for pushbutton
   digitalWrite(buttonPin, HIGH); 
 }
@@ -101,48 +125,48 @@ void loop() {
   }
    
   if (mode == 0) {
-  strip_a.begin();
-  strip_a.show(); // Initialize all pixels to 'off'
-  strip_b.begin();
-  strip_b.show();
-  LarsonScan_a(); //Larson Scan Circle
+  ring.begin();
+  ring.show(); // Initialize all pixels to 'off'
+  strip.begin();
+  strip.show();
+  LarsonScanRing(); //Larson Scan Circle
   }
   
   if (mode == 1) {
-  strip_a.begin();
-  strip_a.show(); // Initialize all pixels to 'off'
-  strip_b.begin();
-  strip_b.show();
-  LarsonScan_b(); // Larson Scan Side
+  ring.begin();
+  ring.show(); // Initialize all pixels to 'off'
+  strip.begin();
+  strip.show();
+  LarsonScanStrip(); // Larson Scan Side
   }
   
   if (mode == 2) {
-  strip_a.begin();
-  strip_a.show(); // Initialize all pixels to 'off'
-  strip_b.begin();
-  strip_b.show();
-  flashRandom(5, 3);
-  flashRandom_b(5, 3);
-//  LarsonScan_b();  
+  ring.begin();
+  ring.show(); // Initialize all pixels to 'off'
+  strip.begin();
+  strip.show();
+  FlashRandomRing(5, 3);
+  FlashRandomString(5, 3);
+//  LarsonScanStrip();  
 }
   
  if (mode == 3) {
-  strip_a.begin();
-  strip_a.show(); // Initialize all pixels to 'off'
-  strip_b.begin();
-  strip_b.show();
-  rainbow(20);
+  ring.begin();
+  ring.show(); // Initialize all pixels to 'off'
+  strip.begin();
+  strip.show();
+  Rainbow(20);
   }
  if (mode == 4) {
-  strip_a.begin();
-  strip_a.show(); // Initialize all pixels to 'off'
-  strip_b.begin();
-  strip_b.show();
-//  LarsonScan_a();
-  amplitie();
+  ring.begin();
+  ring.show(); // Initialize all pixels to 'off'
+  strip.begin();
+  strip.show();
+//  LarsonScanRing();
+  Amplitie();
   }
 } 
-void flashRandom(int wait, uint8_t howmany) {
+void FlashRandomRing(int wait, uint8_t howmany) {
  
   for(uint16_t i=0; i<howmany; i++) {
     // pick a random favorite color!
@@ -152,7 +176,7 @@ void flashRandom(int wait, uint8_t howmany) {
     int blue = myColors[c][2]; 
  
     // get a random pixel from the list
-    int j = random(strip_a.numPixels());
+    int j = random(ring.numPixels());
     
     // now we will 'fade' it in 5 steps
     for (int x=0; x < 5; x++) {
@@ -160,8 +184,8 @@ void flashRandom(int wait, uint8_t howmany) {
       int g = green * (x+1); g /= 5;
       int b = blue * (x+1); b /= 5;
       
-      strip_a.setPixelColor(j, strip_a.Color(r, g, b));
-      strip_a.show();
+      ring.setPixelColor(j, ring.Color(r, g, b));
+      ring.show();
       delay(wait);
     }
     // & fade out in 5 steps
@@ -170,14 +194,14 @@ void flashRandom(int wait, uint8_t howmany) {
       int g = green * x; g /= 5;
       int b = blue * x; b /= 5;
       
-      strip_a.setPixelColor(j, strip_a.Color(r, g, b));
-      strip_a.show();
+      ring.setPixelColor(j, ring.Color(r, g, b));
+      ring.show();
       delay(wait);
     }
   }
   // LEDs will be off when done (they are faded to 0)
 }
-void flashRandom_b(int wait, uint8_t howmany) {
+void FlashRandomString(int wait, uint8_t howmany) {
  
   for(uint16_t i=0; i<howmany; i++) {
     // pick a random favorite color!
@@ -187,7 +211,7 @@ void flashRandom_b(int wait, uint8_t howmany) {
     int blue = myColors[c][2]; 
  
     // get a random pixel from the list
-    int j = random(strip_b.numPixels());
+    int j = random(strip.numPixels());
     
     // now we will 'fade' it in 5 steps
     for (int x=0; x < 5; x++) {
@@ -195,8 +219,8 @@ void flashRandom_b(int wait, uint8_t howmany) {
       int g = green * (x+1); g /= 5;
       int b = blue * (x+1); b /= 5;
       
-      strip_b.setPixelColor(j, strip_b.Color(r, g, b));
-      strip_b.show();
+      strip.setPixelColor(j, strip.Color(r, g, b));
+      strip.show();
       delay(wait);
     }
     // & fade out in 5 steps
@@ -205,8 +229,8 @@ void flashRandom_b(int wait, uint8_t howmany) {
       int g = green * x; g /= 5;
       int b = blue * x; b /= 5;
       
-      strip_b.setPixelColor(j, strip_b.Color(r, g, b));
-      strip_b.show();
+      strip.setPixelColor(j, strip.Color(r, g, b));
+      strip.show();
       delay(wait);
     }
   }
@@ -214,25 +238,25 @@ void flashRandom_b(int wait, uint8_t howmany) {
 }
 // Fill the strip at once with one color
 void SetFullStrip(uint32_t c) {
-  for(uint16_t i=0; i<strip_a.numPixels(); i++) {
-      strip_a.setPixelColor(i, c);
-      strip_a.setBrightness(100);
-      strip_a.show();
+  for(uint16_t i=0; i<ring.numPixels(); i++) {
+      ring.setPixelColor(i, c);
+      ring.setBrightness(100);
+      ring.show();
       }
 }
 
-void rainbow(uint8_t wait) {
+void Rainbow(uint8_t wait) {
   uint16_t i, j;
 
   for(j=0; j<256; j++) {
-    for(i=0; i<strip_a.numPixels(); i++) {
-      strip_a.setBrightness(100);
-      strip_a.setPixelColor(i, Wheel_a((i+j) & 255));
-      strip_b.setBrightness(100);
-      strip_b.setPixelColor(i, Wheel_a((i+j) & 255));
+    for(i=0; i<ring.numPixels(); i++) {
+      ring.setBrightness(100);
+      ring.setPixelColor(i, Wheel_a((i+j) & 255));
+      strip.setBrightness(100);
+      strip.setPixelColor(i, Wheel_a((i+j) & 255));
     }
-    strip_a.show();
-    strip_b.show();
+    ring.show();
+    strip.show();
     delay(wait);
   }
 }
@@ -248,18 +272,18 @@ void buttonCheck() {
       
       if(mode == 4) {
         mode = 0;
-        SetFullStrip(strip_a.Color(0, 0, 0));
+        SetFullStrip(ring.Color(0, 0, 0));
         buttonHoldTime = millis();
       } else {
         mode = mode + 1;
-        SetFullStrip(strip_a.Color(0, 0, 0));
+        SetFullStrip(ring.Color(0, 0, 0));
         buttonHoldTime = millis();
       }
     }
   }
 }
 
-void amplitie()
+void Amplitie()
 {
   uint8_t  i;
   uint16_t minLvl, maxLvl;
@@ -280,19 +304,19 @@ void amplitie()
   if(height > peak)     peak   = height; // Keep 'peak' dot at top
 
 
-  // Color pixels based on rainbow gradient
-  for(i=0; i<N_PIXELSB; i++) {
-    if(i >= height)               strip_b.setPixelColor(i,   0,   0, 0);
-    else strip_b.setPixelColor(i,Wheel_b(map(i,0,strip_b.numPixels()-1,30,150)));
+  // Color pixels based on Rainbow gradient
+  for(i=0; i<N_STRAND; i++) {
+    if(i >= height)               strip.setPixelColor(i,   0,   0, 0);
+    else strip.setPixelColor(i,Wheel_b(map(i,0,strip.numPixels()-1,30,150)));
     
   }
 
 
 
   // Draw peak dot  
-  if(peak > 0 && peak <= N_PIXELSB-1) strip_b.setPixelColor(peak,Wheel_b(map(peak,0,strip_b.numPixels()-1,30,150)));
+  if(peak > 0 && peak <= N_STRAND-1) strip.setPixelColor(peak,Wheel_b(map(peak,0,strip.numPixels()-1,30,150)));
   
-   strip_b.show(); // Update strip_b
+   strip.show(); // Update strip
 
 // Every few frames, make the peak pixel drop by 1:
 
@@ -325,60 +349,60 @@ void amplitie()
 
 }
 
-void LarsonScan_a() {
+void LarsonScanRing() {
   int j;
 
   // Draw 5 pixels centered on pos.  setPixelColor() will clip any
   // pixels off the ends of the strip, we don't need to watch for that.
-  strip_a.setPixelColor(pos - 2, 0x100000); // Dark red
-  strip_a.setPixelColor(pos - 1, 0x800000); // Medium red
-  strip_a.setPixelColor(pos    , 0xFF3000); // Center pixel is brightest
-  strip_a.setPixelColor(pos + 1, 0x800000); // Medium red
-  strip_a.setPixelColor(pos + 2, 0x100000); // Dark red
+  ring.setPixelColor(pos - 2, 0x100000); // Dark red
+  ring.setPixelColor(pos - 1, 0x800000); // Medium red
+  ring.setPixelColor(pos    , 0xFF3000); // Center pixel is brightest
+  ring.setPixelColor(pos + 1, 0x800000); // Medium red
+  ring.setPixelColor(pos + 2, 0x100000); // Dark red
 
-  strip_a.show();
+  ring.show();
   delay(50);
 
   // Rather than being sneaky and erasing just the tail pixel,
   // it's easier to erase it all and draw a new one next time.
-  for(j=-2; j<= 2; j++) strip_a.setPixelColor(pos+j, 0);
+  for(j=-2; j<= 2; j++) ring.setPixelColor(pos+j, 0);
 
   // Bounce off ends of strip
   pos += dir;
   if(pos < 0) {
     pos = 1;
     dir = -dir;
-  } else if(pos >= strip_a.numPixels()) {
-    pos = strip_a.numPixels() - 2;
+  } else if(pos >= ring.numPixels()) {
+    pos = ring.numPixels() - 2;
     dir = -dir;
   }
 }
 
-void LarsonScan_b() {
+void LarsonScanStrip() {
   int j;
 
   // Draw 5 pixels centered on pos.  setPixelColor() will clip any
   // pixels off the ends of the strip, we don't need to watch for that.
-  strip_b.setPixelColor(pos - 2, 0x100000); // Dark red
-  strip_b.setPixelColor(pos - 1, 0x800000); // Medium red
-  strip_b.setPixelColor(pos    , 0xFF3000); // Center pixel is brightest
-  strip_b.setPixelColor(pos + 1, 0x800000); // Medium red
-  strip_b.setPixelColor(pos + 2, 0x100000); // Dark red
+  strip.setPixelColor(pos - 2, 0x100000); // Dark red
+  strip.setPixelColor(pos - 1, 0x800000); // Medium red
+  strip.setPixelColor(pos    , 0xFF3000); // Center pixel is brightest
+  strip.setPixelColor(pos + 1, 0x800000); // Medium red
+  strip.setPixelColor(pos + 2, 0x100000); // Dark red
 
-  strip_b.show();
+  strip.show();
   delay(50);
 
   // Rather than being sneaky and erasing just the tail pixel,
   // it's easier to erase it all and draw a new one next time.
-  for(j=-2; j<= 2; j++) strip_b.setPixelColor(pos+j, 0);
+  for(j=-2; j<= 2; j++) strip.setPixelColor(pos+j, 0);
 
   // Bounce off ends of strip
   pos += dir;
   if(pos < 0) {
     pos = 1;
     dir = -dir;
-  } else if(pos >= strip_b.numPixels()) {
-    pos = strip_b.numPixels() - 2;
+  } else if(pos >= strip.numPixels()) {
+    pos = strip.numPixels() - 2;
     dir = -dir;
   }
 }
@@ -392,33 +416,33 @@ void drawLine(uint8_t from, uint8_t to, uint32_t c) {
     to = fromTemp;
   }
   for(int i=from; i<=to; i++){
-    strip_b.setPixelColor(i, c);
+    strip.setPixelColor(i, c);
   }
 }
 //void RandomSparcs_a()
 //   {    
 //    i = random(32);
 //    c = random(4294967295);
-//    strip_a.setPixelColor(i, c);
-//    strip_a.show();
+//    ring.setPixelColor(i, c);
+//    ring.show();
 //    delay(10);
-//    strip_a.setPixelColor(i, 0);
+//    ring.setPixelColor(i, 0);
 //   }
 //    i = random(32);
-//    strip_a.setPixelColor(i, color);
-//    strip_a.show();
+//    ring.setPixelColor(i, color);
+//    ring.show();
 //    delay(10);
-//    strip_a.setPixelColor(i, 0);
+//    ring.setPixelColor(i, 0);
 //    break;
 //   )
    
 //void RandomSparcs_b(uint8_t  i)
 //  (
 //    i = random(32);
-//    strip_b.setPixelColor(i, color);
-//    strip_b.show();
+//    strip.setPixelColor(i, color);
+//    strip.show();
 //    delay(10);
-//    strip_b.setPixelColor(i, 0);
+//    strip.setPixelColor(i, 0);
 //    break;
 //   )
 float fscale( float originalMin, float originalMax, float newBegin, float
@@ -490,27 +514,27 @@ newEnd, float inputValue, float curve){
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel_a(byte Wheel_aPos) {
   if(Wheel_aPos < 85) {
-   return strip_a.Color(Wheel_aPos * 3, 255 - Wheel_aPos * 3, 0);
+   return ring.Color(Wheel_aPos * 3, 255 - Wheel_aPos * 3, 0);
   } else if(Wheel_aPos < 170) {
    Wheel_aPos -= 85;
-   return strip_a.Color(255 - Wheel_aPos * 3, 0, Wheel_aPos * 3);
+   return ring.Color(255 - Wheel_aPos * 3, 0, Wheel_aPos * 3);
    } else {
    Wheel_aPos -= 170;
-   return strip_a.Color(0, Wheel_aPos * 3, 255 - Wheel_aPos * 3);
+   return ring.Color(0, Wheel_aPos * 3, 255 - Wheel_aPos * 3);
   }
 }
 
 uint32_t Wheel_b(byte Wheel_bPos) {
   if(Wheel_bPos < 85) {
-    return strip_b.Color(Wheel_bPos * 3, 255 - Wheel_bPos * 3, 0);
+    return strip.Color(Wheel_bPos * 3, 255 - Wheel_bPos * 3, 0);
   } 
   else if(Wheel_bPos < 170) {
     Wheel_bPos -= 85;
-    return strip_b.Color(255 - Wheel_bPos * 3, 0, Wheel_bPos * 3);
+    return strip.Color(255 - Wheel_bPos * 3, 0, Wheel_bPos * 3);
   } 
   else {
     Wheel_bPos -= 170;
-    return strip_b.Color(0, Wheel_bPos * 3, 255 - Wheel_bPos * 3);
+    return strip.Color(0, Wheel_bPos * 3, 255 - Wheel_bPos * 3);
   }
 }
 
